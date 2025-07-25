@@ -72,10 +72,15 @@
       const dy = target.y - goose.y;
       const dist = Math.hypot(dx, dy);
 
-      if (dist > 1) {
-        goose.x += (dx / dist) * goose.speed;
-        goose.y += (dy / dist) * goose.speed;
-      }
+const landingThreshold = 2;
+
+if (dist > landingThreshold) {
+  goose.x += (dx / dist) * goose.speed;
+  goose.y += (dy / dist) * goose.speed;
+} else {
+  goose.x = target.x;
+  goose.y = target.y;
+}
 
       const borderMargin = 10;
       let shift = { x: 0, y: 0 };
