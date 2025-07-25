@@ -39,29 +39,41 @@
 const canvas     = document.getElementById("gameCanvas");
 const ctx        = canvas.getContext("2d");
 const zoneLabel  = document.getElementById("zoneLabel");
-const gooseImg   = new Image(); gooseImg.src = "Copilot_20250724_235148.png";
-const surbMaps   = ["surbmap01.png", "surbmap02.png"].map(src => {
-  let img = new Image(); img.src = src; return img;
-});
 
-const tileSize  = 60, gooseSize = 40, halfGoose = gooseSize / 2;
+const gooseImg = new Image();
+gooseImg.src = "Copilot_20250724_235148.png";
+
+// ⬇️ NEW: preload Surb-1 image overlays
+const surbImg1 = new Image(); surbImg1.src = "surbmap01.png";
+const surbImg2 = new Image(); surbImg2.src = "surbmap02.png";
+
+const tileSize   = 60;
+const gooseSize  = 40;
+const halfGoose  = gooseSize / 2;
+
 let gridCols, gridRows;
-let goose = { x:0, y:0, mode:"land" };
+let goose       = { x:0, y:0, mode:"land" };
 let destination = null;
 let currentZone = { x:0, y:0 };
 let zoneMemory  = {};
 
-function seededRand(seed){
-  let x = Math.sin(seed * 928371.123) * 10000;
-  return x - Math.floor(x);
-}
+const terrainLibrary = {
+  Forest:   { colors:{ tree:"#228B22", grass:"#90EE90", path:"#d2b48c" }, allowedModes:["land","fly"], logic: forestLogic },
+  Lake:     { colors:{ water:"#87CEFA", shore:"#A2DFF7" },             allowedModes:["water","fly"], logic: lakeLogic },
+  City:     { colors:{ road:"#A9A9A9", building:"#696969", plaza:"#ccc" }, allowedModes:["land"], logic: cityLogic },
+  Field:    { colors:{ corn:"#F4D03F", wheat:"#F5DEB3", grass:"#ADFF2F", flower:"#FFD700", path:"#D2B48C", hay:"#DEB887" }, allowedModes:["land","fly"], logic: fieldLogic },
+  Airport:  { colors:{ tarmac:"#C0C0C0", light:"#F5F5DC" }, allowedModes:["land"], logic: airportLogic },
+  "Surb-1": { colors:{ road:"#808080", grass:"#7CFC00" }, allowedModes:["land","fly"], logic: surb1Logic }
+};
+
+function seededRand(seed){ let x=Math.sin(seed*928371.123)*10000; return x - Math.floor(x); }
 
 function buildGrid(typeFn, walkableFn){
-  let grid = [];
+  let grid=[];
   for(let y=0; y<gridRows; y++){
-    let row = [];
+    let row=[];
     for(let x=0; x<gridCols; x++){
-      let t = typeFn(x,y);
+      let t=typeFn(x,y);
       row.push({ type:t, walkable:walkableFn(t) });
     }
     grid.push(row);
@@ -71,97 +83,93 @@ function buildGrid(typeFn, walkableFn){
 
 function randomBiome(){
   const keys = Object.keys(terrainLibrary);
-  return keys[Math.floor(Math.random() * keys.length)];
+  return keys[Math.floor(Math.random()*keys.length)];
 }
 
-const terrainLibrary = {
-  Forest: { colors:{ tree:"#228B22", grass:"#90EE90", path:"#d2b48c" }, allowedModes:["land","fly"], logic: forestLogic },
-  Lake: { colors:{ water:"#87CEFA", shore:"#A2DFF7" }, allowedModes:["water","fly"], logic: lakeLogic },
-  City: { colors:{ road:"#A9A9A9", building:"#696969", plaza:"#ccc" }, allowedModes:["land"], logic: cityLogic },
-  Field: { colors:{ corn:"#F4D03F", wheat:"#F5DEB3", grass:"#ADFF2F", flower:"#FFD700", path:"#D2B48C", hay:"#DEB887" }, allowedModes:["land","fly"], logic: fieldLogic },
-  Airport: { colors:{ tarmac:"#C0C0C0", light:"#F5F5DC" }, allowedModes:["land"], logic: airportLogic },
-  "Surb-1": { colors:{ road:"#808080", grass:"#7CFC00" }, allowedModes:["land","fly"], logic: surb1Logic }
-};
+// Biome logic functions (forestLogic, lakeLogic, etc.) [unchanged—your originals here]
 
-// Biome logic functions...
-// [Insert your forestLogic(), lakeLogic(), cityLogic(), etc. here — unchanged from before]
-
-// --- UI & startup ---
 function startGame(type){
   document.getElementById("menu").style.display = "none";
   document.getElementById("game").style.display = "block";
-  let isMobile = type === "mobile";
-  let w = window.innerWidth  - (isMobile ? 20 : 0);
-  let h = window.innerHeight - (isMobile ? 160 : 0);
-  gridCols = Math.floor(w / tileSize);
-  gridRows = Math.floor(h / tileSize);
+
+  let isMobile = type==="mobile";
+  let w = window.innerWidth  - (isMobile?20:0);
+  let h = window.innerHeight - (isMobile?160:0);
+
+  gridCols = Math.floor(w/tileSize);
+  gridRows = Math.floor(h/tileSize);
   canvas.width  = gridCols * tileSize;
   canvas.height = gridRows * tileSize;
-  goose.x = canvas.width / 2;
-  goose.y = canvas.height / 2;
+
+  goose.x = canvas.width/2;
+  goose.y = canvas.height/2;
   loadZone(0,0);
   loop();
 }
 
 function setMode(m){
   let biome = zoneMemory[`${currentZone.x},${currentZone.y}`].biome;
-  if(terrainLibrary[biome].allowedModes.includes(m)) goose.mode = m;
+  if(terrainLibrary[biome].allowedModes.includes(m))
+    goose.mode = m;
 }
 
-function loadZone(x,y){
-  let key = `${x},${y}`;
-  if(!zoneMemory[key]){
-    let b = randomBiome();
-    let zone = { biome: b, grid: terrainLibrary[b].logic(x,y) };
-    if(b === "Surb-1") {
-      let seed = x*73 + y*41;
-      let i = Math.floor(seededRand(seed) * surbMaps.length);
-      zone.mapImage = surbMaps[i];
-    }
-    zoneMemory[key] = zone;
-  }
-  currentZone = { x, y };
-  zoneLabel.textContent = zoneMemory[key].biome;
-}
-
-// Click handling
 document.getElementById("mobileBtn").onclick  = ()=> startGame("mobile");
 document.getElementById("desktopBtn").onclick = ()=> startGame("desktop");
 document.getElementById("landBtn").onclick    = ()=> setMode("land");
 document.getElementById("waterBtn").onclick   = ()=> setMode("water");
 document.getElementById("flyBtn").onclick     = ()=> setMode("fly");
+
 canvas.addEventListener("click", e=>{
   let r = canvas.getBoundingClientRect();
   destination = { x:e.clientX-r.left, y:e.clientY-r.top };
 });
 
-// Render logic
+function loadZone(x,y){
+  let key = `${x},${y}`;
+  if(!zoneMemory[key]){
+    let b = randomBiome();
+    zoneMemory[key] = { biome:b, grid:terrainLibrary[b].logic(x,y) };
+  }
+  currentZone = { x,y };
+  zoneLabel.textContent = zoneMemory[key].biome;
+}
+
+// All drawX functions (drawTree, drawWaterWaves, etc.) stay unchanged here...
+
 function drawTerrain(){
   const zone = zoneMemory[`${currentZone.x},${currentZone.y}`];
   const cols = terrainLibrary[zone.biome].colors;
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  if(zone.biome === "Surb-1" && zone.mapImage?.complete){
-    ctx.drawImage(zone.mapImage, 0, 0, canvas.width, canvas.height);
-  }
-
   for(let y=0; y<gridRows; y++){
     for(let x=0; x<gridCols; x++){
       const tile = zone.grid[y][x];
-      const px = x * tileSize, py = y * tileSize;
+      const px   = x*tileSize, py = y*tileSize;
       ctx.fillStyle = cols[tile.type] || "#fff";
-      ctx.fillRect(px, py, tileSize, tileSize);
+      ctx.fillRect(px,py,tileSize,tileSize);
 
       let seed = x*31 + y*47 + currentZone.x*97 + currentZone.y*131;
-
       switch(zone.biome){
-        case "Surb-1":
-          if(tile.type === "grass") drawGrassBlades(px, py, seed);
-          if(tile.type === "road")  drawSuburbRoadDetail(px, py);
+        case "Forest":  // call drawTree, drawGrassBlades, etc.
           break;
-        // Add other biome switch cases here (Forest, Lake, etc.)
+        case "Lake":    // call drawWaterWaves, drawShoreShells
+          break;
+        case "City":    // call drawBuildingDetails, drawRoadLines, drawPlazaTiles
+          break;
+        case "Field":   // drawCornStalks, drawHayDetail, etc.
+          break;
+        case "Airport": // drawTarmacMarkings, drawLights
+          break;
+        case "Surb-1":  // drawGrassBlades, drawSuburbRoadDetail
+          break;
       }
     }
+  }
+
+  // 🆕 Surb-1 overlay integration
+  if(zone.biome === "Surb-1"){
+    if(surbImg1.complete) ctx.drawImage(surbImg1, 0, 0, canvas.width, canvas.height);
+    if(surbImg2.complete) ctx.drawImage(surbImg2, 0, 0, canvas.width, canvas.height);
   }
 }
 
@@ -170,30 +178,32 @@ function loop(){
     let dx = destination.x - goose.x,
         dy = destination.y - goose.y,
         d  = Math.hypot(dx,dy);
-    if(d < 2) destination = null;
+    if(d<2) destination=null;
     else {
       goose.x += (dx/d)*3;
       goose.y += (dy/d)*3;
     }
   }
 
-  // zone boundary transitions
-  if(goose.x < halfGoose){
+  if(goose.x<halfGoose){
     currentZone.x--; loadZone(currentZone.x,currentZone.y);
     goose.x = canvas.width - halfGoose; destination=null;
-  } else if(goose.x > canvas.width - halfGoose){
+  } else if(goose.x>canvas.width-halfGoose){
     currentZone.x++; loadZone(currentZone.x,currentZone.y);
     goose.x = halfGoose; destination=null;
   }
-  if(goose.y < halfGoose){
+  if(goose.y<halfGoose){
     currentZone.y--; loadZone(currentZone.x,currentZone.y);
     goose.y = canvas.height - halfGoose; destination=null;
-  } else if(goose.y > canvas.height - halfGoose){
-    currentZone.y++; loadZone(currentZone.x, currentZone.y);
-    goose.y = halfGoose; destination = null;
+  } else   if(goose.y > canvas.height - halfGoose){
+    currentZone.y++;
+    loadZone(currentZone.x, currentZone.y);
+    goose.y = halfGoose;
+    destination = null;
   }
 
   drawTerrain();
+
   if(gooseImg.complete){
     ctx.drawImage(
       gooseImg,
@@ -209,4 +219,3 @@ function loop(){
 
 </body>
 </html>
- 
