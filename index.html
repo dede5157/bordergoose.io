@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>border goose alpha</title>
   <style>
     body {
@@ -9,6 +10,7 @@
       background: #cce7ff;
       font-family: sans-serif;
     }
+
     #mainMenu {
       position: absolute;
       top: 30%;
@@ -17,10 +19,26 @@
       background: white;
       padding: 20px;
       border-radius: 12px;
-      box-shadow: 0 0 10px #999;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
       text-align: center;
       z-index: 100;
     }
+
+    #mainMenu button {
+      margin: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      background: #4b99ff;
+      color: white;
+      cursor: pointer;
+    }
+
+    #mainMenu h2 {
+      margin-bottom: 15px;
+    }
+
     canvas {
       display: none;
     }
@@ -28,39 +46,52 @@
 </head>
 <body>
 
+  <!-- Main Menu Overlay -->
   <div id="mainMenu">
     <h2>Choose Mode</h2>
     <button onclick="startGame('desktop')">Desktop Mode</button>
     <button onclick="startGame('mobile')">Mobile Mode</button>
   </div>
 
+  <!-- Game Canvas -->
   <canvas id="gameCanvas" width="800" height="600"></canvas>
 
   <script>
     let canvas, ctx;
-    let gooseImg = new Image();
-    gooseImg.src = 'Copilot_20250724_235148.png'; // Updated goose icon
+    let gameMode = null;
+    let gooseReady = false;
+
+    const gooseImg = new Image();
+    gooseImg.src = 'Copilot_20250724_235148.png'; // Updated icon
+    gooseImg.onload = () => {
+      gooseReady = true;
+      if (gameMode) {
+        initGame(gameMode);
+      }
+    };
 
     function startGame(mode) {
+      gameMode = mode;
       document.getElementById('mainMenu').style.display = 'none';
       canvas = document.getElementById('gameCanvas');
       ctx = canvas.getContext('2d');
       canvas.style.display = 'block';
 
-      initGame(mode);
+      if (gooseReady) {
+        initGame(gameMode);
+      }
     }
 
     function initGame(mode) {
-      console.log("Starting game in " + mode + " mode");
+      console.log("Starting in " + mode + " mode");
 
-      gooseImg.onload = () => {
-        // Draw goose at center (test icon placement)
-        const x = canvas.width / 2 - gooseImg.width / 2;
-        const y = canvas.height / 2 - gooseImg.height / 2;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(gooseImg, x, y);
-        // More game logic goes here…
-      };
+      // Draw goose in center
+      const x = canvas.width / 2 - gooseImg.width / 2;
+      const y = canvas.height / 2 - gooseImg.height / 2;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(gooseImg, x, y);
+
+      // Add game logic here: movement, terrain, zone triggers…
     }
   </script>
 
