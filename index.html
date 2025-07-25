@@ -139,21 +139,23 @@
     );
   }
 
-  // tilted, curvy Surb-1
-  function surb1Logic(sx,sy){
-    let slope   = gridRows / gridCols;
-    let amp     = 3 + seededRand(sx*17+sy*23)*3;
-    let freq    = 2*Math.PI / gridCols;
-    let phase   = seededRand(sx*31+sy*43) * 2*Math.PI;
-    let roadW   = 1;
+  // Surb-1: angled, curvy left-to-right
+  function surb1Logic(sx, sy) {
+    const roadW = 1;
+    const angle = Math.PI / 6;               // 30° tilt
+    const slope = Math.tan(angle);
+    const amp   = 2 + seededRand(sx*17 + sy*23) * 4;
+    const freq  = 2 * Math.PI / gridCols;
+    const phase = seededRand(sx*31 + sy*43) * 2 * Math.PI;
+
     return buildGrid(
-      (x,y)=>{
-        let center = (gridRows/2)
-                   + slope*(x - gridCols/2)
-                   + amp*Math.sin(freq*x + phase);
-        return Math.abs(y - center) <= roadW ? "road" : "grass";
+      (x, y) => {
+        const centerY = gridRows/2
+                      + slope * (x - gridCols/2)
+                      + amp   * Math.sin(freq * x + phase);
+        return Math.abs(y - centerY) <= roadW ? "road" : "grass";
       },
-      t=> t==="road" || t==="grass"
+      t => t === "road" || t === "grass"
     );
   }
 
@@ -204,7 +206,7 @@
     zoneLabel.textContent = zoneMemory[key].biome;
   }
 
-  // --- Detail-drawing ---
+  // --- Detail-drawing helpers (trees, waves, windows, etc.) ---
   function drawTree(px,py){
     ctx.fillStyle="#8B4513";
     ctx.fillRect(px+tileSize*0.45,py+tileSize*0.6,tileSize*0.1,tileSize*0.4);
