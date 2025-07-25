@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>🪿 Border Goose</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: sans-serif; background: #f0f8ff; margin: 0; text-align: center; }
+    canvas { border: 1px solid #333; background: #fff; display: block; margin: auto; }
+    button { margin: 5px; padding: 10px 20px; font-size: 16px; }
+    button:disabled { opacity: 0.5; }
+    #menu { margin-top: 40px; }
+    #game { display: none; }
+  </style>
+</head>
+<body>
+
+<div id="menu">
+  <h1>🪿 Border Goose</h1>
+  <p>Select your device:</p>
+  <button id="mobileBtn">Mobile</button>
+  <button id="desktopBtn">Desktop</button>
+</div>
+
+<div id="game">
+  <canvas id="gameCanvas"></canvas><br>
+  <button id="landBtn">Walk</button>
+  <button id="waterBtn">Swim</button>
+  <button id="flyBtn">Fly</button>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+let goose = { x: 300, y: 180, mode: "land" };
+let destination = null;
+let currentZone = { x: 0, y: 0 };
+let zoneMemory = {};
+const tileSize = 60;
+let gridCols, gridRows;
+
+const terrainLibrary = {
+  Forest: {
+    colors: { tree: "#228B22", grass: "#90EE90", path: "#d2b48c" },
+    allowedModes: ["land", "fly"],
+    logic: forestLogic
+  },
+  Lake: {
+    colors: { water: "#87CEFA", shore: "#A2DFF7" },
+    allowedModes: ["water", "fly"],
+    logic: lakeLogic
+  },
+  City: {
+    colors: { road: "#A9A9A9", building: "#696969", plaza: "#ccc" },
+    allowedModes: ["land"],
+    logic: cityLogic
+  },
+  Field: {
+    colors: {
+      corn: "#F4D03F", wheat: "#F5DEB3", grass: "#ADFF2F",
+      flower: "#FFD700", path: "#D2B48C", hay: "#DEB887"
+    },
+    allowedModes: ["land", "fly"],
+    logic: fieldLogic
+  },
+  Airport: {
+    colors: { tarmac: "#C0C0C0", light: "#F5F5DC" },
+    allowedModes: ["land"],
+    logic: airportLogic
+  }
+};
+
+function seededRand(seed) {
+  let x = Math.sin(seed * 928371.123) * 10000;
+  return x - Math.floor(x);
+}
+
+function buildGrid(typeFn, walkableFn) {
+  let grid = [];
+  for (let y = 0; y < gridRows; y++) {
+    let row = [];
+    for (let x = 0; x < gridCols; x++) {
+      let type = typeFn(x, y);
+      row.push({ type, walkable: walkableFn(type) });
+    }
+    grid.push(row);
+  }
+  return grid;
+}
+
+function randomBiome() {
+  const types = Object.keys(terrainLibrary);
+  return types[Math.floor(Math.random() * types.length)];
+}
+
+function forestLogic(sx, sy) {
+  return buildGrid((x, y) => {
+    return seededRand(x*31 + y*97 + sx*173 + sy*389) < 0.7 ? "tree" : "grass";
+  }, t => t === "grass");
+}
+
+function lakeLogic(sx, sy) {
+  return buildGrid((x, y) => {
+    let cx = gridCols/2, cy = gridRows/2;
+    let dx = x - cx, dy = y - cy;
+    let r = Math.sqrt(dx*dx + dy*dy);
+    return r < 5 ? "water" : "shore";
+  }, t => t === "shore");
+}
+
+function cityLogic(sx, sy) {
+  return buildGrid((x, y) => {
+    let r = seededRand(x*13 + y*17 + sx*59 + sy*67);
+    return r < 0.15 ? "road" : r < 0.25 ? "plaza" : "building";
+  }, t => t === "road" || t === "plaza");
+}
+
+function fieldLogic(sx, sy) {
+  return buildGrid((x, y) => {
+    let r = seededRand(x*17 + y*23 + sx*37 + sy*41);
+    if ((x + y) % 11 === 0 && r < 0.6) return "path";
+    if (r < 0.15) return "hay";
+    if (r < 0.35) return "corn";
+    if (r < 0.55) return "wheat";
+    if (r < 0.75) return "grass";
+    if (r < 0.9) return "flower";
+    return "grass";
+  }, t => !["corn", "wheat", "hay"].includes(t));
+}
+
+function airportLogic(sx, sy) {
+  return buildGrid((x, y) => {
+    let r = seededRand(x*17 + y*23 + sx*31 + sy*47);
+    if (y % 5 === 0 && r < 0.8) return "tarmac";
+    return "light";
+  }, () => true);
+}
+
+function startGame(type) {
+  document.getElementById("menu").style.display = "none";
+  document.getElementById("game").style.display = "block";
+  let width = type === "mobile" ? window.innerWidth - 20 : 600;
+  let height = type === "mobile" ? window.innerHeight - 160 : 360;
+  gridCols = Math.floor(width / tileSize);
+  gridRows = Math.floor(height / tileSize);
+  canvas.width = gridCols * tileSize;
+  canvas.height = gridRows * tileSize;
+  goose.x = canvas.width / 2;
+  goose.y = canvas.height / 2;
+  loadZone(currentZone.x, currentZone.y);
+  loop();
+}
+
+function setMode(mode) {
+  const biome = zoneMemory[`${currentZone.x},${currentZone.y}`].biome;
+  if (terrainLibrary[biome].allowedModes.includes(mode)) {
+    goose.mode = mode;
+  }
+}
+
+document.getElementById("mobileBtn").onclick = () => startGame("mobile");
+document.getElementById("desktopBtn").onclick = () => startGame("desktop");
+document.getElementById("landBtn").onclick = () => setMode("land");
+document.getElementById("waterBtn").onclick = () => setMode("water");
+document.getElementById("flyBtn").onclick = () => setMode("fly");
+
+canvas.addEventListener("click", e => {
+  const rect = canvas.getBoundingClientRect();
+  destination = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+});
+
+function loadZone(x, y) {
+  const key = `${x},${y}`;
+  if (!zoneMemory[key]) {
+    const biome = randomBiome();
+    zoneMemory[key] = {
+      biome,
+      grid: terrainLibrary[biome].logic(x, y)
+    };
+  }
+  currentZone = { x, y };
+}
+
+function drawTerrain() {
+  const zone = zoneMemory[`${currentZone.x},${currentZone.y}`];
+  const biome = zone.biome;
+  const colors = terrainLibrary[biome].colors;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  for (let y = 0; y < gridRows; y++) {
+    for (let x = 0; x < gridCols; x++) {
+      const tile = zone.grid[y][x];
+      const px = x * tileSize;
+      const py = y * tileSize;
+      ctx.fillStyle = colors[tile.type] || "#ffffff";
+      ctx.fillRect(px, py, tileSize, tileSize);
+
+      if (tile.type === "hay") {
+        ctx.fillStyle = "#d2b48c";
+        ctx.beginPath();
+        ctx.ellipse(px + tileSize/2, py + tileSize/2, tileSize/2.6, tileSize/3, 0, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.strokeStyle = "#8b5a2b";
+        ctx.beginPath();
+        ctx.moveTo(px + tileSize/4, py + tileSize/2);
+        ctx.lineTo(px + tileSize*0.75, py + tileSize/2);
+        ctx.stroke();
+      }
+    }
+  }
+
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  ctx.arc(goose.x, goose.y, 10, 0, 2 * Math.PI);
+  ctx.fill();
+
+  ctx.fillStyle = "#333";
+  ctx.font = "14px sans-serif";
+  ctx.fillText(`Zone: ${currentZone.x},${currentZone.y}`, 10, 20);
+  ctx.fillText(`Mode: ${goose.mode}`, 10, 40);
+}
+
+function loop() {
+  drawTerrain();
+  if (destination) {
+    const dx = destination.x - goose.x;
+    const dy = destination.y - goose.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > 1) {
+      goose.x += dx / dist;
+      goose.y += dy / dist;
+    } else {
+      destination = null;
+    }
+  }
+  requestAnimationFrame(loop);
+}
+</script>
+
+</body>
+</html>
