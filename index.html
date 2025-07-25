@@ -1,16 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>border goose alpha</title>
   <style>
     body {
       margin: 0;
-      overflow: hidden;
       background: #cce7ff;
       font-family: sans-serif;
     }
-
     #mainMenu {
       position: absolute;
       top: 30%;
@@ -23,22 +21,6 @@
       text-align: center;
       z-index: 100;
     }
-
-    #mainMenu button {
-      margin: 10px;
-      padding: 10px 20px;
-      font-size: 16px;
-      border: none;
-      border-radius: 8px;
-      background: #4b99ff;
-      color: white;
-      cursor: pointer;
-    }
-
-    #mainMenu h2 {
-      margin-bottom: 15px;
-    }
-
     canvas {
       display: none;
     }
@@ -46,14 +28,12 @@
 </head>
 <body>
 
-  <!-- Main Menu Overlay -->
   <div id="mainMenu">
     <h2>Choose Mode</h2>
     <button onclick="startGame('desktop')">Desktop Mode</button>
     <button onclick="startGame('mobile')">Mobile Mode</button>
   </div>
 
-  <!-- Game Canvas -->
   <canvas id="gameCanvas" width="800" height="600"></canvas>
 
   <script>
@@ -62,12 +42,10 @@
     let gooseReady = false;
 
     const gooseImg = new Image();
-    gooseImg.src = 'Copilot_20250724_235148.png'; // Updated icon
+    gooseImg.src = 'Copilot_20250724_235148.png';
     gooseImg.onload = () => {
       gooseReady = true;
-      if (gameMode) {
-        initGame(gameMode);
-      }
+      if (gameMode) initGame(gameMode);
     };
 
     function startGame(mode) {
@@ -77,21 +55,64 @@
       ctx = canvas.getContext('2d');
       canvas.style.display = 'block';
 
-      if (gooseReady) {
-        initGame(gameMode);
-      }
+      if (gooseReady) initGame(gameMode);
+    }
+
+    // Procedural terrain generator using simple seeded randomness
+    function seededRandom(seed) {
+      let x = seed;
+      return () => {
+        x = (x * 16807) % 2147483647;
+        return (x - 1) / 2147483646;
+      };
     }
 
     function initGame(mode) {
-      console.log("Starting in " + mode + " mode");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw goose in center
+      const zoneSize = 100;
+      const rows = Math.ceil(canvas.height / zoneSize);
+      const cols = Math.ceil(canvas.width / zoneSize);
+
+      // Seed based on mode
+      const seedVal = mode === 'desktop' ? 1337 : 2025;
+      const rand = seededRandom(seedVal);
+
+      // Draw zones
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const val = rand();
+          let color;
+          if (val < 0.3) color = '#a3d9a5'; // grassland
+          else if (val < 0.6) color = '#e2c290'; // sand
+          else color = '#a0c4de'; // water
+
+          ctx.fillStyle = color;
+          ctx.fillRect(c * zoneSize, r * zoneSize, zoneSize, zoneSize);
+        }
+      }
+
+      // Draw gridlines for clarity
+      ctx.strokeStyle = "#666";
+      for (let x = 0; x <= canvas.width; x += zoneSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= canvas.height; y += zoneSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+
+      // Draw goose centered
       const x = canvas.width / 2 - gooseImg.width / 2;
       const y = canvas.height / 2 - gooseImg.height / 2;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(gooseImg, x, y);
 
-      // Add game logic here: movement, terrain, zone triggers…
+      console.log("Game started in", mode, "mode with terrain seeded.");
     }
   </script>
 
