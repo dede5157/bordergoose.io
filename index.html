@@ -33,7 +33,7 @@ const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
 const gooseImg = new Image();
-gooseImg.src = "Copilot_20250724_235148.png"; // Transparent PNG
+gooseImg.src = "Copilot_20250724_235148.png";
 
 let goose = { x: 300, y: 180, mode: "land" };
 let destination = null;
@@ -97,7 +97,10 @@ function randomBiome() {
 }
 
 function forestLogic(sx, sy) {
-  return buildGrid((x, y) => seededRand(x*31 + y*97 + sx*173 + sy*389) < 0.7 ? "tree" : "grass", t => t === "grass");
+  return buildGrid(
+    (x, y) => seededRand(x*31 + y*97 + sx*173 + sy*389) < 0.7 ? "tree" : "grass",
+    t => t === "grass"
+  );
 }
 function lakeLogic(sx, sy) {
   return buildGrid((x, y) => {
@@ -135,12 +138,15 @@ function startGame(type) {
   document.getElementById("menu").style.display = "none";
   document.getElementById("game").style.display = "block";
 
-  let width = type === "mobile" ? window.innerWidth - 20 : 600;
-  let height = type === "mobile" ? window.innerHeight - 160 : 360;
-  gridCols = Math.floor(width / tileSize);
+  let isMobile = type === "mobile";
+  let width  = window.innerWidth  - (isMobile ? 20  : 0);
+  let height = window.innerHeight - (isMobile ? 160 : 0);
+
+  gridCols = Math.floor(width  / tileSize);
   gridRows = Math.floor(height / tileSize);
-  canvas.width = gridCols * tileSize;
+  canvas.width  = gridCols * tileSize;
   canvas.height = gridRows * tileSize;
+
   goose.x = canvas.width / 2;
   goose.y = canvas.height / 2;
 
@@ -155,15 +161,18 @@ function setMode(mode) {
   }
 }
 
-document.getElementById("mobileBtn").onclick = () => startGame("mobile");
+document.getElementById("mobileBtn").onclick  = () => startGame("mobile");
 document.getElementById("desktopBtn").onclick = () => startGame("desktop");
-document.getElementById("landBtn").onclick = () => setMode("land");
-document.getElementById("waterBtn").onclick = () => setMode("water");
-document.getElementById("flyBtn").onclick = () => setMode("fly");
+document.getElementById("landBtn").onclick    = () => setMode("land");
+document.getElementById("waterBtn").onclick   = () => setMode("water");
+document.getElementById("flyBtn").onclick     = () => setMode("fly");
 
 canvas.addEventListener("click", e => {
   const rect = canvas.getBoundingClientRect();
-  destination = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  destination = {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top
+  };
 });
 
 function loadZone(x, y) {
@@ -179,72 +188,78 @@ function loadZone(x, y) {
 }
 
 function drawTerrain() {
-  const zone = zoneMemory[`${currentZone.x},${currentZone.y}`];
-  const biome = zone.biome;
-  const colors = terrainLibrary[biome].colors;
+  const zone   = zoneMemory[`${currentZone.x},${currentZone.y}`];
+  const colors = terrainLibrary[zone.biome].colors;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   for (let y = 0; y < gridRows; y++) {
     for (let x = 0; x < gridCols; x++) {
       const tile = zone.grid[y][x];
-      const px = x * tileSize;
-      const py = y * tileSize;
+      const px = x * tileSize, py = y * tileSize;
       ctx.fillStyle = colors[tile.type] || "#ffffff";
       ctx.fillRect(px, py, tileSize, tileSize);
 
       if (tile.type === "hay") {
-        ctx.fillStyle = "#d2b48c";
+        ctx.fillStyle   = "#d2b48c";
         ctx.beginPath();
-        ctx.ellipse(px + tileSize/2, py + tileSize/2, tileSize/2.6, tileSize/3, 0, 0, 2 * Math.PI);
+        ctx.ellipse(px + tileSize/2, py + tileSize/2,
+                    tileSize/2.6, tileSize/3, 0, 0, 2 * Math.PI);
         ctx.fill();
         ctx.strokeStyle = "#8b5a2b";
         ctx.beginPath();
-      ctx.moveTo(px + tileSize / 4, py + tileSize / 2);
-      ctx.lineTo(px + tileSize * 3/4, py + tileSize / 2);
-      ctx.stroke();
+        ctx.moveTo(px + tileSize/4, py + tileSize/2);
+        ctx.lineTo(px + tileSize*3/4, py + tileSize/2);
+        ctx.stroke();
       }
     }
   }
 }
 
 function loop() {
-  drawTerrain();
-
-  if (gooseImg.complete) {
-    ctx.drawImage(gooseImg, goose.x - 20, goose.y - 20, 40, 40);
-  }
-
+  // Move goose toward destination
   if (destination) {
     let dx = destination.x - goose.x;
     let dy = destination.y - goose.y;
-    let dist = Math.sqrt(dx*dx + dy*dy);
+    let dist = Math.hypot(dx, dy);
     if (dist < 2) {
       destination = null;
     } else {
       let speed = 3;
       goose.x += (dx / dist) * speed;
       goose.y += (dy / dist) * speed;
-
-      if (goose.x < 0) {
-        currentZone.x--;
-        goose.x = canvas.width - 1;
-        loadZone(currentZone.x, currentZone.y);
-      } else if (goose.x > canvas.width) {
-        currentZone.x++;
-        goose.x = 1;
-        loadZone(currentZone.x, currentZone.y);
-      }
-
-      if (goose.y < 0) {
-        currentZone.y--;
-        goose.y = canvas.height - 1;
-        loadZone(currentZone.x, currentZone.y);
-      } else if (goose.y > canvas.height) {
-        currentZone.y++;
-        goose.y = 1;
-        loadZone(currentZone.x, currentZone.y);
-      }
     }
+  }
+
+  // Border crossing: load new zone and reset position, then skip draw this frame
+  if (goose.x < 0) {
+    currentZone.x--;
+    loadZone(currentZone.x, currentZone.y);
+    goose.x = canvas.width - 1;
+    return requestAnimationFrame(loop);
+  }
+  if (goose.x > canvas.width) {
+    currentZone.x++;
+    loadZone(currentZone.x, currentZone.y);
+    goose.x = 1;
+    return requestAnimationFrame(loop);
+  }
+  if (goose.y < 0) {
+    currentZone.y--;
+    loadZone(currentZone.x, currentZone.y);
+    goose.y = canvas.height - 1;
+    return requestAnimationFrame(loop);
+  }
+  if (goose.y > canvas.height) {
+    currentZone.y++;
+    loadZone(currentZone.x, currentZone.y);
+    goose.y = 1;
+    return requestAnimationFrame(loop);
+  }
+
+  drawTerrain();
+
+  if (gooseImg.complete) {
+    ctx.drawImage(gooseImg, goose.x - 20, goose.y - 20, 40, 40);
   }
 
   requestAnimationFrame(loop);
