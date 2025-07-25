@@ -35,7 +35,6 @@ const ctx = canvas.getContext("2d");
 const gooseImg = new Image();
 gooseImg.src = "Copilot_20250724_235148.png";
 
-// goose sprite dimensions
 const gooseSize = 40;
 const halfGoose = gooseSize / 2;
 
@@ -96,8 +95,9 @@ function buildGrid(typeFn, walkableFn) {
 }
 
 function randomBiome() {
-  const types = Object.keys(terrainLibrary);
-  return types[Math.floor(Math.random() * types.length)];
+  return Object.keys(terrainLibrary)[
+    Math.floor(Math.random() * Object.keys(terrainLibrary).length)
+  ];
 }
 
 function forestLogic(sx, sy) {
@@ -108,38 +108,50 @@ function forestLogic(sx, sy) {
 }
 
 function lakeLogic(sx, sy) {
-  return buildGrid((x, y) => {
-    let cx = gridCols/2, cy = gridRows/2;
-    let dx = x - cx, dy = y - cy;
-    return Math.sqrt(dx*dx + dy*dy) < 5 ? "water" : "shore";
-  }, t => t === "shore");
+  return buildGrid(
+    (x, y) => {
+      let cx = gridCols/2, cy = gridRows/2;
+      let dx = x - cx, dy = y - cy;
+      return Math.sqrt(dx*dx + dy*dy) < 5 ? "water" : "shore";
+    },
+    t => t === "shore"
+  );
 }
 
 function cityLogic(sx, sy) {
-  return buildGrid((x, y) => {
-    let r = seededRand(x*13 + y*17 + sx*59 + sy*67);
-    return r < 0.15 ? "road" : r < 0.25 ? "plaza" : "building";
-  }, t => t === "road" || t === "plaza");
+  return buildGrid(
+    (x, y) => {
+      let r = seededRand(x*13 + y*17 + sx*59 + sy*67);
+      return r < 0.15 ? "road" : r < 0.25 ? "plaza" : "building";
+    },
+    t => t === "road" || t === "plaza"
+  );
 }
 
 function fieldLogic(sx, sy) {
-  return buildGrid((x, y) => {
-    let r = seededRand(x*17 + y*23 + sx*37 + sy*41);
-    if ((x + y) % 11 === 0 && r < 0.6) return "path";
-    if (r < 0.15) return "hay";
-    if (r < 0.35) return "corn";
-    if (r < 0.55) return "wheat";
-    if (r < 0.75) return "grass";
-    if (r < 0.9) return "flower";
-    return "grass";
-  }, t => !["corn", "wheat", "hay"].includes(t));
+  return buildGrid(
+    (x, y) => {
+      let r = seededRand(x*17 + y*23 + sx*37 + sy*41);
+      if ((x + y) % 11 === 0 && r < 0.6) return "path";
+      if (r < 0.15) return "hay";
+      if (r < 0.35) return "corn";
+      if (r < 0.55) return "wheat";
+      if (r < 0.75) return "grass";
+      if (r < 0.9) return "flower";
+      return "grass";
+    },
+    t => !["corn", "wheat", "hay"].includes(t)
+  );
 }
 
 function airportLogic(sx, sy) {
-  return buildGrid((x, y) => {
-    let r = seededRand(x*17 + y*23 + sx*31 + sy*47);
-    return (y % 5 === 0 && r < 0.8) ? "tarmac" : "light";
-  }, () => true);
+  return buildGrid(
+    (x, y) => {
+      let r = seededRand(x*17 + y*23 + sx*31 + sy*47);
+      return (y % 5 === 0 && r < 0.8) ? "tarmac" : "light";
+    },
+    () => true
+  );
 }
 
 function startGame(type) {
@@ -155,7 +167,6 @@ function startGame(type) {
   canvas.width  = gridCols * tileSize;
   canvas.height = gridRows * tileSize;
 
-  // center goose
   goose.x = canvas.width  / 2;
   goose.y = canvas.height / 2;
 
@@ -211,10 +222,8 @@ function drawTerrain() {
       if (tile.type === "hay") {
         ctx.fillStyle = "#d2b48c";
         ctx.beginPath();
-        ctx.ellipse(
-          px + tileSize/2, py + tileSize/2,
-          tileSize/2.6, tileSize/3, 0, 0, 2 * Math.PI
-        );
+        ctx.ellipse(px + tileSize/2, py + tileSize/2,
+                    tileSize/2.6, tileSize/3, 0, 0, 2*Math.PI);
         ctx.fill();
         ctx.strokeStyle = "#8b5a2b";
         ctx.beginPath();
@@ -227,7 +236,7 @@ function drawTerrain() {
 }
 
 function loop() {
-  // move toward destination
+  // Move goose toward destination
   if (destination) {
     let dx = destination.x - goose.x;
     let dy = destination.y - goose.y;
@@ -240,28 +249,33 @@ function loop() {
     }
   }
 
-  // border crossing using goose half-size
+  // Border crossing & stop on arrival
   if (goose.x < halfGoose) {
     currentZone.x--;
     loadZone(currentZone.x, currentZone.y);
     goose.x = canvas.width - halfGoose;
+    destination = null;
   } else if (goose.x > canvas.width - halfGoose) {
     currentZone.x++;
     loadZone(currentZone.x, currentZone.y);
     goose.x = halfGoose;
+    destination = null;
   }
 
   if (goose.y < halfGoose) {
     currentZone.y--;
     loadZone(currentZone.x, currentZone.y);
     goose.y = canvas.height - halfGoose;
+    destination = null;
   } else if (goose.y > canvas.height - halfGoose) {
     currentZone.y++;
     loadZone(currentZone.x, currentZone.y);
     goose.y = halfGoose;
+    destination = null;
   }
 
   drawTerrain();
+
   if (gooseImg.complete) {
     ctx.drawImage(
       gooseImg,
